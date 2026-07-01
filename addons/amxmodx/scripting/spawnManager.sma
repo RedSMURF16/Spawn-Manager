@@ -580,7 +580,6 @@ public menuRemove(id, iMenu)
     ArraySetArray(g_aSpawn, g_ePlayerData[id][PDATA_SPAWN_MENU], eSpawn)
 }
 
-
 public menuHandlerRemove(id, menu, item)
 {
     new eSpawn[SPAWN]
