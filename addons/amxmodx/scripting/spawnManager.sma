@@ -193,7 +193,7 @@ new Array:g_aSpawn,
     g_eSettings[MAIN_SETTINGS],
     g_ePlayerData[MAX_PLAYERS + 1][PLAYER_DATA],
     bool:g_bFileWasRead = false,
-    g_iSpawn,
+    g_iSpawn, g_iCountT, g_iCountCT,
     g_iMaxPlayers
 
 public plugin_init()
@@ -538,10 +538,10 @@ public menuHandlerRoot(id, menu, item)
 public menuCreate(id, iMenu)
 {
     new szItem[64]
-    formatex(szItem, charsmax(szItem), "%L", id, "SPAWN_CREATE_T")
+    formatex(szItem, charsmax(szItem), "%L", id, "SPAWN_CREATE_T", g_iCountT)
     menu_additem(iMenu, szItem )
 
-    formatex(szItem, charsmax(szItem), "%L", id, "SPAWN_CREATE_CT")
+    formatex(szItem, charsmax(szItem), "%L", id, "SPAWN_CREATE_CT", g_iCountCT)
     menu_additem(iMenu, szItem)
 }
 
@@ -737,12 +737,18 @@ public spawnTask()
 
     for ( new id = 1; id <= g_iMaxPlayers; id ++ )
     {
-        if ( !is_user_alive(id)
-        || !g_ePlayerData[id][PDATA_SPAWN_GHOST]
-        || spawnGet(eSpawn, g_ePlayerData[id][PDATA_SPAWN_GHOST]) == -1 )
+        if ( !is_user_alive(id) )
             continue
 
-        spawnTrace(eSpawn, id)
+        if ( !g_ePlayerData[id][PDATA_SPAWN_GHOST] )
+        {
+            if ( g_ePlayerData[id][PDATA_SPAWN_ACTION] )
+                spawnCheck(id)
+        }
+        else if ( spawnGet(eSpawn, g_ePlayerData[id][PDATA_SPAWN_GHOST]) != -1 )
+        {
+            spawnTrace(eSpawn, id)
+        }
     }
 }
 
@@ -767,8 +773,8 @@ stock spawnCreate(id, iTeam)
 
     set_pev(iEnt, SPAWN_ARRAY_ITEM, g_iSpawn)
     set_pev(iEnt, pev_impulse, SPAWN_KEY)
-    if ( iTeam == TEAM_T ) engfunc(EngFunc_SetModel, iEnt, g_eSettings[SETTING_DEFAULT_MODEL_T])
-    else                   engfunc(EngFunc_SetModel, iEnt, g_eSettings[SETTING_DEFAULT_MODEL_CT])
+    if ( iTeam == TEAM_T ) { engfunc(EngFunc_SetModel, iEnt, g_eSettings[SETTING_DEFAULT_MODEL_T]); g_iCountT ++; }
+    else                   { engfunc(EngFunc_SetModel, iEnt, g_eSettings[SETTING_DEFAULT_MODEL_CT]); g_iCountCT ++; }
 
     ArrayPushArray(g_aSpawn, eSpawn)
     g_iSpawn ++
@@ -795,6 +801,11 @@ stock spawnCreateEnt(eSpawn[SPAWN])
 stock spawnRemove(iItem)
 {
     new eSpawn[SPAWN]
+
+    ArrayGetArray(g_aSpawn, iItem, eSpawn)
+    if ( eSpawn[SPAWN_TEAM] == TEAM_T ) g_iCountT --
+    else                                g_iCountCT --
+
     ArrayDeleteItem(g_aSpawn, iItem)
     g_iSpawn --
 
@@ -1137,6 +1148,74 @@ stock spawnTrace(eSpawn[SPAWN], id)
     engfunc(EngFunc_TraceLine, eSpawn[SPAWN_ORIGIN], fVec1, IGNORE_MONSTERS, id, 0)
     get_tr2(0, TR_vecEndPos, eSpawn[SPAWN_ORIGIN])
     set_pev(eSpawn[SPAWN_ID], pev_origin, eSpawn[SPAWN_ORIGIN])
+}
+
+stock spawnCheck(id)
+{
+    new eSpawn[SPAWN], Float:fVec1[3], Float:fVec2[3], Float:fForward[3]
+    new iBest, Float:fBestDist, Float:fTraceLength, Float:fDot, Float:fDist
+
+    pev(id, pev_origin, fVec1)
+    pev(id, pev_view_ofs, fVec2)
+    xs_vec_add(fVec1, fVec2, fVec1)
+
+    pev(id, pev_v_angle, fForward)
+    engfunc(EngFunc_MakeVectors, fForward)
+    global_get(glb_v_forward, fForward)
+
+    xs_vec_mul_scalar(fForward, 9999.9, fVec2)
+    xs_vec_add(fVec2, fVec1, fVec2)
+
+    engfunc(EngFunc_TraceLine, fVec1, fVec2, DONT_IGNORE_MONSTERS, id, 0)
+    get_tr2(0, TR_vecEndPos, fVec2)
+
+    iBest = -1
+    fBestDist = 20.0
+    fTraceLength = get_distance_f(fVec1, fVec2)
+
+    for ( new i = 0; i < g_iSpawn; i ++ )
+    {
+        ArrayGetArray(g_aSpawn, i, eSpawn)
+        xs_vec_sub(eSpawn[SPAWN_ORIGIN], fVec1, fVec2)
+        fDot = xs_vec_dot(fVec2, fForward)
+
+        if ( fDot < 0.0 || fDot > fTraceLength )
+            continue
+
+        xs_vec_copy(fForward, fVec2)
+        xs_vec_mul_scalar(fVec2, fDot, fVec2)
+        xs_vec_add(fVec2, fVec1, fVec2)
+
+        fDist = get_distance_f(eSpawn[SPAWN_ORIGIN], fVec2)
+        if ( fDist < fBestDist )
+        {
+            fBestDist = fDist
+            iBest = i
+        }
+    }
+
+    if ( iBest != -1
+    && g_ePlayerData[id][PDATA_SPAWN_MENU] != iBest )
+    {
+        ArrayGetArray(g_aSpawn, g_ePlayerData[id][PDATA_SPAWN_MENU], eSpawn)
+        eSpawn[SPAWN_FLAGS] &= ~FLAG_SELECT
+        ArraySetArray(g_aSpawn, g_ePlayerData[id][PDATA_SPAWN_MENU], eSpawn)
+
+        ArrayGetArray(g_aSpawn, iBest, eSpawn)
+        eSpawn[SPAWN_FLAGS] |= FLAG_SELECT
+        ArraySetArray(g_aSpawn, iBest, eSpawn)
+        g_ePlayerData[id][PDATA_SPAWN_MENU] = iBest
+    }
+}
+
+public spawnSpark(Float:fOrigin[3])
+{
+    message_begin_f(MSG_PVS, SVC_TEMPENTITY, fOrigin)
+    write_byte(TE_SPARKS)
+    write_coord_f(fOrigin[0])
+    write_coord_f(fOrigin[1])
+    write_coord_f(fOrigin[2])
+    message_end()
 }
 
 stock spawnSetAnim(iEnt)
