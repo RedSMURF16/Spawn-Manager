@@ -154,7 +154,7 @@ enum
     ROOT_REMOVE,
     ROOT_SAVE,
 
-    ROOT_NOCLIP = 5,
+    ROOT_NOCLIP = 4,
     ROOT_GODMODE
 }
 
@@ -1149,7 +1149,7 @@ stock spawnTrace(eSpawn[SPAWN], id)
 
 stock spawnCheck(id)
 {
-    new eSpawn[SPAWN], Float:fVec1[3], Float:fVec2[3], Float:fVec3[3], Float:fMins[3], Float:fMaxs[3], Float:fNearest[3]
+    new eSpawn[SPAWN], Float:fVec1[3], Float:fVec2[3], Float:fVec3[3]
     new iBest, Float:fBestDist, Float:fDot, Float:fDist
 
     pev(id, pev_origin, fVec1)
@@ -1171,15 +1171,9 @@ stock spawnCheck(id)
         if ( fDot < 0.0 )
             continue
 
-        pev(eSpawn[SPAWN_ID], pev_absmin, fMins)
-        pev(eSpawn[SPAWN_ID], pev_absmax, fMaxs)
         xs_vec_mul_scalar(fVec2, fDot, fVec3)
         xs_vec_add(fVec3, fVec1, fVec3)
-
-        fNearest[0] = floatclamp(fVec3[0], fMins[0], fMaxs[0])
-        fNearest[1] = floatclamp(fVec3[1], fMins[1], fMaxs[1])
-        fNearest[2] = floatclamp(fVec3[2], fMins[2], fMaxs[2])
-        fDist = get_distance_f(fVec3, fNearest)
+        fDist = get_distance_f(fVec3, eSpawn[SPAWN_ORIGIN])
         if ( fDist < fBestDist )
         {
             fBestDist = fDist
@@ -1199,16 +1193,6 @@ stock spawnCheck(id)
         ArraySetArray(g_aSpawn, iBest, eSpawn)
         g_ePlayerData[id][PDATA_SPAWN_MENU] = iBest
     }
-}
-
-public spawnSpark(Float:fOrigin[3])
-{
-    message_begin_f(MSG_PVS, SVC_TEMPENTITY, fOrigin)
-    write_byte(TE_SPARKS)
-    write_coord_f(fOrigin[0])
-    write_coord_f(fOrigin[1])
-    write_coord_f(fOrigin[2])
-    message_end()
 }
 
 stock spawnSetAnim(iEnt)
