@@ -14,7 +14,7 @@ SPAWN_REMOVE                         = Remove
 SPAWN_ON                             = \y[ON]
 SPAWN_OFF                            = \r[OFF]
 
-SPAWN_MENU_TITLE                     = \dSpawn Point - Version \y%s
+SPAWN_MENU_TITLE                     = \dSpawn Manager - Version \y%s
 SPAWN_MENU_TITLE_PAGE                = \yPage:\r
 
 SPAWN_ROOT_CREATE                    = Create Spawn Point
