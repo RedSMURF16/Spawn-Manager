@@ -636,6 +636,14 @@ public menuHandlerRemove(id, menu, item)
             spawnSound(id, SOUND_MENU_ALERT)
             spawnMenu(id, MENU_ROOT)
         }
+        case MENU_EXIT:
+        {
+            g_ePlayerData[id][PDATA_SPAWN_ACTION] = false
+            g_ePlayerData[id][PDATA_SPAWN_MENU] = 0
+
+            spawnSound(id, SOUND_MENU_NAV)
+            spawnMenu(id, MENU_ROOT)
+        }
         default:
         {
             g_ePlayerData[id][PDATA_SPAWN_ACTION] = false
@@ -712,6 +720,17 @@ public menuHandlerRotate(id, menu, item)
             client_print_color(id, id, "%L %L", id, "SPAWN_CHAT_TAG", id, "SPAWN_CHAT_CREATE_NEW")
             spawnSound(id, SOUND_MENU_NAV)
             spawnMenu(id, MENU_ROOT)
+        }
+        case MENU_EXIT:
+        {
+            spawnKill(eSpawn[SPAWN_ID])
+            spawnKill(eSpawn[SPAWN_ENT_ID])
+            spawnRemove(iItem)
+            g_ePlayerData[id][PDATA_SPAWN_GHOST] = 0
+            g_ePlayerData[id][PDATA_SPAWN_ACTION] = false
+
+            spawnSound(id, SOUND_MENU_NAV)
+            spawnMenu(id, MENU_CREATE)
         }
         default:
         {
