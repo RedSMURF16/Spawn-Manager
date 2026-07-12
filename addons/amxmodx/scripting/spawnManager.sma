@@ -137,7 +137,10 @@ enum _:PLAYER_DATA
     PDATA_SPAWN_MENU,
     bool:PDATA_SPAWN_ACTION,
     Float:PDATA_OFFSET,
-    Float:PDATA_NEXT_OFFSET
+    Float:PDATA_NEXT_OFFSET,
+
+    PDATA_MENU_TYPE,
+    bool:PDATA_MENU_TRACE
 }
 
 enum
@@ -420,6 +423,9 @@ public spawnInit()
 
 public spawnMenu(id, iType)
 {
+    if ( !is_user_connected(id) )
+        return PLUGIN_HANDLED
+
     new szData[64], iMenu
     formatex(szData, charsmax(szData), "%L", id, "SPAWN_MENU_TITLE", PLUGIN_VERSION)
     iMenu = menu_create(szData, g_szMenuHandler[iType])
@@ -573,6 +579,7 @@ public menuRemove(id, iMenu)
     menu_additem(iMenu, szItem)
 
     g_ePlayerData[id][PDATA_SPAWN_ACTION] = true
+    g_ePlayerData[id][PDATA_MENU_TYPE] = MENU_REMOVE
     eSpawn[SPAWN_FLAGS] |= FLAG_SELECT
     ArraySetArray(g_aSpawn, g_ePlayerData[id][PDATA_SPAWN_MENU], eSpawn)
 }
@@ -580,10 +587,12 @@ public menuRemove(id, iMenu)
 public menuHandlerRemove(id, menu, item)
 {
     new eSpawn[SPAWN]
-
     ArrayGetArray(g_aSpawn, g_ePlayerData[id][PDATA_SPAWN_MENU], eSpawn)
-    eSpawn[SPAWN_FLAGS] &= ~FLAG_SELECT
-    ArraySetArray(g_aSpawn, g_ePlayerData[id][PDATA_SPAWN_MENU], eSpawn)
+    if ( !g_ePlayerData[id][PDATA_MENU_TRACE] )
+    {
+        eSpawn[SPAWN_FLAGS] &= ~FLAG_SELECT
+        ArraySetArray(g_aSpawn, g_ePlayerData[id][PDATA_SPAWN_MENU], eSpawn)
+    }
 
     switch( item )
     {
@@ -638,11 +647,16 @@ public menuHandlerRemove(id, menu, item)
         }
         case MENU_EXIT:
         {
-            g_ePlayerData[id][PDATA_SPAWN_ACTION] = false
-            g_ePlayerData[id][PDATA_SPAWN_MENU] = 0
+            if ( !g_ePlayerData[id][PDATA_MENU_TRACE] )
+            {
+                spawnSound(id, SOUND_MENU_NAV)
+                spawnMenu(id, MENU_ROOT)
 
-            spawnSound(id, SOUND_MENU_NAV)
-            spawnMenu(id, MENU_ROOT)
+                g_ePlayerData[id][PDATA_SPAWN_MENU] = 0
+                g_ePlayerData[id][PDATA_SPAWN_ACTION] = false
+            }
+
+            g_ePlayerData[id][PDATA_MENU_TRACE] = false
         }
         default:
         {
@@ -1207,10 +1221,9 @@ stock spawnCheck(id)
         eSpawn[SPAWN_FLAGS] &= ~FLAG_SELECT
         ArraySetArray(g_aSpawn, g_ePlayerData[id][PDATA_SPAWN_MENU], eSpawn)
 
-        ArrayGetArray(g_aSpawn, iBest, eSpawn)
-        eSpawn[SPAWN_FLAGS] |= FLAG_SELECT
-        ArraySetArray(g_aSpawn, iBest, eSpawn)
+        g_ePlayerData[id][PDATA_MENU_TRACE] = true
         g_ePlayerData[id][PDATA_SPAWN_MENU] = iBest
+        spawnMenu(id, g_ePlayerData[id][PDATA_MENU_TYPE])
     }
 }
 
