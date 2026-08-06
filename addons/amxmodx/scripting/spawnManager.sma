@@ -195,7 +195,8 @@ new Array:g_aSpawn,
     g_eSettings[MAIN_SETTINGS],
     g_ePlayerData[MAX_PLAYERS + 1][PLAYER_DATA],
     bool:g_bFileWasRead = false,
-    g_iSpawn, g_iCountT, g_iCountCT,
+    g_iCountT, g_iCountCT, g_iActivePlayers,
+    g_iFwdUpdateClientData, g_iFwdAddToFullPack, HamHook:g_iFwdSpawn, HamHook:g_iFwdPreThink, HamHook:g_iFwdKilled,
     g_iMaxPlayers
 
 public plugin_init()
@@ -211,16 +212,15 @@ public plugin_init()
 
     register_dictionary("SpawnManager.txt")
 
-    register_forward(FM_UpdateClientData, "fwdUpdateClientData", 1)
-    register_forward(FM_AddToFullPack, "fwdAddToFullPack", 1)
-    RegisterHam(Ham_Spawn, "info_target", "fwdSpawn", 1)
-    RegisterHam(Ham_Player_PreThink, "player", "fwdPreThink")
-    RegisterHam(Ham_Killed, "player", "fwdKilled", 1)
+    g_iFwdUpdateClientData = register_forward(FM_UpdateClientData, "fwdUpdateClientData", 1)
+    g_iFwdAddToFullPack = register_forward(FM_AddToFullPack, "fwdAddToFullPack", 1)
+    g_iFwdSpawn = RegisterHam(Ham_Spawn, "info_target", "fwdSpawn", 1)
+    g_iFwdPreThink = RegisterHam(Ham_Player_PreThink, "player", "fwdPreThink")
+    g_iFwdKilled = RegisterHam(Ham_Killed, "player", "fwdKilled", 1)
+    DisableForwards()
 
     g_iMaxPlayers = get_maxplayers()
     spawnInit()
-
-    set_task(0.1, "spawnTask", .flags = "b")
 }
 
 public plugin_precache()
@@ -479,7 +479,7 @@ public menuHandlerRoot(id, menu, item)
     {
         case ROOT_CREATE:
         {
-            if ( g_iSpawn >= MAX_ENT )
+            if ( ArraySize(g_aSpawn) >= MAX_ENT )
             {
                 client_print_color(id, id, "%L %L", id, "SPAWN_CHAT_TAG", id, "SPAWN_CHAT_LIMIT", MAX_ENT)
                 spawnSound(id, SOUND_MENU_REMOVE)
@@ -492,7 +492,7 @@ public menuHandlerRoot(id, menu, item)
         }
         case ROOT_REMOVE:
         {
-            if ( !g_iSpawn )
+            if ( !ArraySize(g_aSpawn) )
             {
                 client_print_color(id, id, "%L %L", id, "SPAWN_CHAT_TAG", id, "SPAWN_CHAT_NO_SPAWN")
                 spawnSound(id, SOUND_MENU_REMOVE)
@@ -572,6 +572,9 @@ public menuRemove(id, iMenu)
     g_ePlayerData[id][PDATA_MENU_TYPE] = MENU_REMOVE
     eSpawn[SPAWN_FLAGS] |= FLAG_SELECT
     ArraySetArray(g_aSpawn, g_ePlayerData[id][PDATA_SPAWN_MENU], eSpawn)
+
+    if ( ++ g_iActivePlayers == 1 )
+        EnableForwards()
 }
 
 public menuHandlerRemove(id, menu, item)
@@ -588,7 +591,7 @@ public menuHandlerRemove(id, menu, item)
     {
         case REMOVE_NEXT:
         {
-            if ( g_ePlayerData[id][PDATA_SPAWN_MENU] >= g_iSpawn - 1 )
+            if ( g_ePlayerData[id][PDATA_SPAWN_MENU] >= ArraySize(g_aSpawn) - 1 )
                 g_ePlayerData[id][PDATA_SPAWN_MENU] = 0
             else
                 g_ePlayerData[id][PDATA_SPAWN_MENU] ++
@@ -599,7 +602,7 @@ public menuHandlerRemove(id, menu, item)
         case REMOVE_BACK:
         {
             if ( g_ePlayerData[id][PDATA_SPAWN_MENU] <= 0 )
-                g_ePlayerData[id][PDATA_SPAWN_MENU] = g_iSpawn - 1
+                g_ePlayerData[id][PDATA_SPAWN_MENU] = ArraySize(g_aSpawn) - 1
             else
                 g_ePlayerData[id][PDATA_SPAWN_MENU] --
 
@@ -615,12 +618,12 @@ public menuHandlerRemove(id, menu, item)
             client_print_color(id, id, "%L %L", id, "SPAWN_CHAT_TAG", id, "SPAWN_CHAT_REMOVE_CURRENT")
             g_ePlayerData[id][PDATA_SPAWN_MENU] = 0
 
-            spawnSound(id, g_iSpawn > 0 ? SOUND_MENU_REMOVE : SOUND_MENU_NAV)
-            spawnMenu(id, g_iSpawn > 0 ? MENU_REMOVE : MENU_ROOT)
+            spawnSound(id, ArraySize(g_aSpawn) > 0 ? SOUND_MENU_REMOVE : SOUND_MENU_NAV)
+            spawnMenu(id, ArraySize(g_aSpawn) > 0 ? MENU_REMOVE : MENU_ROOT)
         }
         case REMOVE_ALL:
         {
-            while ( g_iSpawn )
+            while ( ArraySize(g_aSpawn) )
             {
                 ArrayGetArray(g_aSpawn, 0, eSpawn)
 
@@ -647,11 +650,17 @@ public menuHandlerRemove(id, menu, item)
             }
 
             g_ePlayerData[id][PDATA_MENU_TRACE] = false
+
+            if ( -- g_iActivePlayers == 0 )
+                DisableForwards()
         }
         default:
         {
             g_ePlayerData[id][PDATA_SPAWN_ACTION] = false
             g_ePlayerData[id][PDATA_SPAWN_MENU] = 0
+
+            if ( -- g_iActivePlayers == 0 )
+                DisableForwards()
         }
     }
 
@@ -724,6 +733,9 @@ public menuHandlerRotate(id, menu, item)
             client_print_color(id, id, "%L %L", id, "SPAWN_CHAT_TAG", id, "SPAWN_CHAT_CREATE_NEW")
             spawnSound(id, SOUND_MENU_NAV)
             spawnMenu(id, MENU_ROOT)
+
+            if ( -- g_iActivePlayers == 0 )
+                DisableForwards()
         }
         case MENU_EXIT:
         {
@@ -735,6 +747,9 @@ public menuHandlerRotate(id, menu, item)
 
             spawnSound(id, SOUND_MENU_NAV)
             spawnMenu(id, MENU_CREATE)
+
+            if ( -- g_iActivePlayers == 0 )
+                DisableForwards()
         }
         default:
         {
@@ -744,32 +759,14 @@ public menuHandlerRotate(id, menu, item)
 
             g_ePlayerData[id][PDATA_SPAWN_GHOST] = 0
             g_ePlayerData[id][PDATA_SPAWN_ACTION] = false
+
+            if ( -- g_iActivePlayers == 0 )
+                DisableForwards()
         }
     }
 
     menu_destroy(menu)
     return PLUGIN_HANDLED
-}
-
-public spawnTask()
-{
-    new eSpawn[SPAWN]
-
-    for ( new id = 1; id <= g_iMaxPlayers; id ++ )
-    {
-        if ( !is_user_alive(id) )
-            continue
-
-        if ( !g_ePlayerData[id][PDATA_SPAWN_GHOST] )
-        {
-            if ( g_ePlayerData[id][PDATA_SPAWN_ACTION] )
-                spawnCheck(id)
-        }
-        else if ( spawnGet(eSpawn, g_ePlayerData[id][PDATA_SPAWN_GHOST]) != -1 )
-        {
-            spawnTrace(eSpawn, id)
-        }
-    }
 }
 
 stock spawnCreate(id, iTeam)
@@ -789,16 +786,17 @@ stock spawnCreate(id, iTeam)
         g_ePlayerData[id][PDATA_OFFSET] = g_eSettings[SETTING_OFFSET_BASE]
 
         eSpawn[SPAWN_FLAGS] |= FLAG_GHOST
+
+        if ( ++ g_iActivePlayers == 1 )
+            EnableForwards()
     }
 
-    set_pev(iEnt, SPAWN_ARRAY_ITEM, g_iSpawn)
+    set_pev(iEnt, SPAWN_ARRAY_ITEM, ArraySize(g_aSpawn))
     set_pev(iEnt, pev_impulse, SPAWN_KEY)
     if ( iTeam == TEAM_T ) { engfunc(EngFunc_SetModel, iEnt, g_eSettings[SETTING_DEFAULT_MODEL_T]); g_iCountT ++; }
     else                   { engfunc(EngFunc_SetModel, iEnt, g_eSettings[SETTING_DEFAULT_MODEL_CT]); g_iCountCT ++; }
 
     ArrayPushArray(g_aSpawn, eSpawn)
-    g_iSpawn ++
-
     dllfunc(DLLFunc_Spawn, iEnt)
 }
 
@@ -827,9 +825,7 @@ stock spawnRemove(iItem)
     else                                g_iCountCT --
 
     ArrayDeleteItem(g_aSpawn, iItem)
-    g_iSpawn --
-
-    for ( new i = iItem; i < g_iSpawn; i ++ )
+    for ( new i = iItem; i < ArraySize(g_aSpawn); i ++ )
     {
         ArrayGetArray(g_aSpawn, i, eSpawn)
         set_pev(eSpawn[SPAWN_ID], SPAWN_ARRAY_ITEM, i)
@@ -849,7 +845,7 @@ public saveData(id)
     if ( !iFile )
         return PLUGIN_HANDLED
 
-    for ( new i = 0; i < g_iSpawn; i ++ )
+    for ( new i = 0; i < ArraySize(g_aSpawn); i ++ )
     {
         ArrayGetArray(g_aSpawn, i, eSpawn)
 
@@ -964,7 +960,7 @@ stock loadDefault()
             continue
 
         spawnCreate(0, TEAM_T)
-        ArrayGetArray(g_aSpawn, g_iSpawn - 1, eSpawn)
+        ArrayGetArray(g_aSpawn, ArraySize(g_aSpawn) - 1, eSpawn)
 
         pev(iEnt, pev_origin, eSpawn[SPAWN_ORIGIN])
         pev(iEnt, pev_angles, eSpawn[SPAWN_ANGLES])
@@ -973,7 +969,7 @@ stock loadDefault()
         set_pev(eSpawn[SPAWN_ID], pev_origin, eSpawn[SPAWN_ORIGIN])
         set_pev(eSpawn[SPAWN_ID], pev_angles, eSpawn[SPAWN_ANGLES])
         spawnSetAnim(eSpawn[SPAWN_ID])
-        ArraySetArray(g_aSpawn, g_iSpawn - 1, eSpawn)
+        ArraySetArray(g_aSpawn, ArraySize(g_aSpawn) - 1, eSpawn)
     }
 
     iEnt = -1
@@ -983,7 +979,7 @@ stock loadDefault()
             continue
 
         spawnCreate(0, TEAM_CT)
-        ArrayGetArray(g_aSpawn, g_iSpawn - 1, eSpawn)
+        ArrayGetArray(g_aSpawn, ArraySize(g_aSpawn) - 1, eSpawn)
 
         pev(iEnt, pev_origin, eSpawn[SPAWN_ORIGIN])
         pev(iEnt, pev_angles, eSpawn[SPAWN_ANGLES])
@@ -993,7 +989,7 @@ stock loadDefault()
         set_pev(eSpawn[SPAWN_ID], pev_angles, eSpawn[SPAWN_ANGLES])
         spawnSetAnim(eSpawn[SPAWN_ID])
 
-        ArraySetArray(g_aSpawn, g_iSpawn - 1, eSpawn)
+        ArraySetArray(g_aSpawn, ArraySize(g_aSpawn) - 1, eSpawn)
     }
 }
 
@@ -1123,29 +1119,36 @@ public fwdPreThink(id)
     if ( !is_user_alive(id) )
         return HAM_IGNORED
 
-    new iButton
+    new eSpawn[SPAWN], iButton, Float:fCurrentTime
     iButton = pev(id, pev_button)
+    fCurrentTime = get_gametime()
 
     if ( g_ePlayerData[id][PDATA_SPAWN_GHOST] )
     {
-        if ( get_gametime() >= g_ePlayerData[id][PDATA_NEXT_OFFSET] )
+        if ( fCurrentTime >= g_ePlayerData[id][PDATA_NEXT_OFFSET] )
         {
             if ( iButton & IN_ATTACK )
             {
                 g_ePlayerData[id][PDATA_OFFSET]      += g_eSettings[SETTING_OFFSET_STEP]
                 g_ePlayerData[id][PDATA_OFFSET]      = floatclamp(g_ePlayerData[id][PDATA_OFFSET], g_eSettings[SETTING_OFFSET][0], g_eSettings[SETTING_OFFSET][1])
-                g_ePlayerData[id][PDATA_NEXT_OFFSET] = get_gametime() + 0.1
+                g_ePlayerData[id][PDATA_NEXT_OFFSET] = fCurrentTime + 0.1
             }
             else if ( iButton & IN_ATTACK2 )
             {
                 g_ePlayerData[id][PDATA_OFFSET]      -= g_eSettings[SETTING_OFFSET_STEP]
                 g_ePlayerData[id][PDATA_OFFSET]      = floatclamp(g_ePlayerData[id][PDATA_OFFSET], g_eSettings[SETTING_OFFSET][0], g_eSettings[SETTING_OFFSET][1])
-                g_ePlayerData[id][PDATA_NEXT_OFFSET] = get_gametime() + 0.1
+                g_ePlayerData[id][PDATA_NEXT_OFFSET] = fCurrentTime + 0.1
             }
         }
 
         iButton &= ~(IN_ATTACK | IN_ATTACK2)
         set_pev(id, pev_button, iButton)
+
+        spawnTrace(eSpawn, id)
+    }
+    else if ( g_ePlayerData[id][PDATA_SPAWN_ACTION] )
+    {
+        spawnCheck(id)
     }
 
     return HAM_IGNORED
@@ -1185,7 +1188,7 @@ stock spawnCheck(id)
 
     iBest = -1
     fBestDist = g_eSettings[SETTING_SPAWN_CHECK]
-    for ( new i = 0; i < g_iSpawn; i ++ )
+    for ( new i = 0; i < ArraySize(g_aSpawn); i ++ )
     {
         ArrayGetArray(g_aSpawn, i, eSpawn)
         xs_vec_sub(eSpawn[SPAWN_ORIGIN], fVec1, fVec3)
@@ -1228,7 +1231,7 @@ stock spawnSetAnim(iEnt)
 stock bool:isSpawnSafe(Float:fOrigin[3])
 {
     new eSpawn[SPAWN]
-    for ( new i = 0; i < g_iSpawn; i ++ )
+    for ( new i = 0; i < ArraySize(g_aSpawn); i ++ )
     {
         ArrayGetArray(g_aSpawn, i, eSpawn)
 
@@ -1256,11 +1259,29 @@ stock spawnSound(iEnt, iSound, iChan = CHAN_ITEM, bool:bPlayer = true, iFlags = 
         engfunc(EngFunc_EmitSound, iEnt, iChan, szSample, VOL_NORM, ATTN_NORM, iFlags, iPitch)
 }
 
+stock EnableForwards()
+{
+    g_iFwdUpdateClientData = register_forward(FM_UpdateClientData, "fwdUpdateClientData", 1)
+    g_iFwdAddToFullPack = register_forward(FM_AddToFullPack, "fwdAddToFullPack", 1)
+    EnableHamForward(g_iFwdSpawn)
+    EnableHamForward(g_iFwdPreThink)
+    EnableHamForward(g_iFwdKilled)
+}
+
+stock DisableForwards()
+{
+    unregister_forward(FM_UpdateClientData, g_iFwdUpdateClientData, 1)
+    unregister_forward(FM_AddToFullPack, g_iFwdAddToFullPack, 1)
+    DisableHamForward(g_iFwdSpawn)
+    DisableHamForward(g_iFwdPreThink)
+    DisableHamForward(g_iFwdKilled)
+}
+
 stock spawnGet(eSpawn[SPAWN], iEnt)
 {
     new iItem
     iItem = pev(iEnt, SPAWN_ARRAY_ITEM)
-    if ( iItem < 0 || iItem >= g_iSpawn )
+    if ( iItem < 0 || iItem >= ArraySize(g_aSpawn) )
         return -1
 
     ArrayGetArray(g_aSpawn, iItem, eSpawn)
