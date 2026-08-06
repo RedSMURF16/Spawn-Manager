@@ -196,7 +196,7 @@ new Array:g_aSpawn,
     g_ePlayerData[MAX_PLAYERS + 1][PLAYER_DATA],
     bool:g_bFileWasRead = false,
     g_iCountT, g_iCountCT, g_iActivePlayers,
-    g_iFwdUpdateClientData, g_iFwdAddToFullPack, HamHook:g_iFwdSpawn, HamHook:g_iFwdPreThink, HamHook:g_iFwdKilled,
+    g_iFwdUpdateClientData, HamHook:g_iFwdSpawn, HamHook:g_iFwdPreThink, HamHook:g_iFwdKilled,
     g_iMaxPlayers
 
 public plugin_init()
@@ -213,7 +213,7 @@ public plugin_init()
     register_dictionary("SpawnManager.txt")
 
     g_iFwdUpdateClientData = register_forward(FM_UpdateClientData, "fwdUpdateClientData", 1)
-    g_iFwdAddToFullPack = register_forward(FM_AddToFullPack, "fwdAddToFullPack", 1)
+    register_forward(FM_AddToFullPack, "fwdAddToFullPack", 1)
     g_iFwdSpawn = RegisterHam(Ham_Spawn, "info_target", "fwdSpawn", 1)
     g_iFwdPreThink = RegisterHam(Ham_Player_PreThink, "player", "fwdPreThink")
     g_iFwdKilled = RegisterHam(Ham_Killed, "player", "fwdKilled", 1)
@@ -1123,7 +1123,8 @@ public fwdPreThink(id)
     iButton = pev(id, pev_button)
     fCurrentTime = get_gametime()
 
-    if ( g_ePlayerData[id][PDATA_SPAWN_GHOST] )
+    if ( g_ePlayerData[id][PDATA_SPAWN_GHOST]
+    && spawnGet(eSpawn, g_ePlayerData[id][PDATA_SPAWN_GHOST]) != -1 )
     {
         if ( fCurrentTime >= g_ePlayerData[id][PDATA_NEXT_OFFSET] )
         {
@@ -1261,8 +1262,6 @@ stock spawnSound(iEnt, iSound, iChan = CHAN_ITEM, bool:bPlayer = true, iFlags = 
 
 stock EnableForwards()
 {
-    g_iFwdUpdateClientData = register_forward(FM_UpdateClientData, "fwdUpdateClientData", 1)
-    g_iFwdAddToFullPack = register_forward(FM_AddToFullPack, "fwdAddToFullPack", 1)
     EnableHamForward(g_iFwdSpawn)
     EnableHamForward(g_iFwdPreThink)
     EnableHamForward(g_iFwdKilled)
@@ -1271,7 +1270,6 @@ stock EnableForwards()
 stock DisableForwards()
 {
     unregister_forward(FM_UpdateClientData, g_iFwdUpdateClientData, 1)
-    unregister_forward(FM_AddToFullPack, g_iFwdAddToFullPack, 1)
     DisableHamForward(g_iFwdSpawn)
     DisableHamForward(g_iFwdPreThink)
     DisableHamForward(g_iFwdKilled)
