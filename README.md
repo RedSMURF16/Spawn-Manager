@@ -15,6 +15,10 @@ Spawn points can be created, moved, rotated, deleted and organized directly in-g
 - Optionally load original map spawn points alongside custom ones
 - Runtime configuration reload support
 
+## 📋 Requirements
+- ReGameDLL
+- AMX Mod X 1.10+
+
 ## 💬 Commands
 - `say /sm` - Opens the Spawn Manager menu.
 - `say_team /sm` - Opens the Spawn Manager menu.
