@@ -259,13 +259,6 @@ public cmdReload(id, iLevel, iCmd)
 
 stock ReadFile()
 {
-    if ( g_bFileWasRead )
-    {
-        for ( new id = 1; id <= g_iMaxPlayers; id ++ )
-            if ( is_user_connected(id))
-                UpdateData(id)
-    }
-
     new g_szFileName[MAX_RESOURCE_PATH_LENGTH]
     get_configsdir(g_szFileName, charsmax(g_szFileName))
     add(g_szFileName, charsmax(g_szFileName), "/SpawnManager.ini")

@@ -1,7 +1,7 @@
 <h1 align="center">Spawn Manager</h1>
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=kbdeUie3-SU"><img src="https://img.youtube.com/vi/kbdeUie3-SU/maxresdefault.jpg" alt="Watch on YouTube" width="600"></a>
+  <img src="images/demo.gif" alt="Spawn Manager">
 </p>
 
 ## 📝 Description
@@ -14,10 +14,6 @@ Spawn points can be created, moved, rotated, deleted and organized directly in-g
 - Per-map spawn configurations saved automatically
 - Optionally load original map spawn points alongside custom ones
 - Runtime configuration reload support
-
-## 📋 Requirements
-- ReGameDLL
-- AMX Mod X 1.10+
 
 ## 💬 Commands
 - `say /sm` - Opens the Spawn Manager menu.
